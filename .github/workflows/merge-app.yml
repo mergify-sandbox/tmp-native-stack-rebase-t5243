@@ -1,0 +1,25 @@
+name: merge-app-token
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        required: true
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ inputs.pr }}
+    steps:
+      - run: |
+          SHA=$(gh api repos/$GITHUB_REPOSITORY/pulls/$PR --jq .head.sha)
+          echo "submitting merge-async for #$PR at $SHA"
+          gh api -X PUT repos/$GITHUB_REPOSITORY/pulls/$PR/merge-async \
+            -f merge_action=direct_merge -f merge_method=squash -f sha=$SHA -i || true
+          for i in $(seq 1 12); do
+            sleep 5
+            gh api repos/$GITHUB_REPOSITORY/pulls/$PR --jq '"merged=\(.merged) by=\(.merged_by.login) sha=\(.merge_commit_sha)"'
+          done
